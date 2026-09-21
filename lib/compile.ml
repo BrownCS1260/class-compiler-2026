@@ -32,14 +32,3 @@ let compile_and_run (program : string) : string =
   let inp = Unix.open_process_in "./program" in
   let r = input_line inp in
   close_in inp ; r
-
-let rec interp_exp (exp : s_exp) : int =
-  match exp with
-  | Num n ->
-      n
-  | Lst [Sym "add1"; arg] ->
-      interp_exp arg + 1
-  | Lst [Sym "sub1"; arg] ->
-      interp_exp arg - 1
-  | _ ->
-      raise (BadExpression exp)
