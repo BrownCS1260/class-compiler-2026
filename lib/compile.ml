@@ -1,6 +1,7 @@
 open S_exp
 open Asm
 open Util
+open Ast
 
 exception BadExpression of s_exp
 
@@ -33,35 +34,61 @@ let lf_to_bool : directive list =
 
 let operand_of_num (n : int) = Imm (n lsl num_shift)
 
-let rec compile_exp (stack_index : int) (program : s_exp) :
-    directive list =
-  match program with
+let rec compile_exp (stack_index : int) (exp : expr) : directive list
+    =
+  match exp with
+  | True ->
+      [Mov (Reg Rax, operand_of_bool true)]
+  | False ->
+      [Mov (Reg Rax, operand_of_bool false)]
   | Num n ->
       [Mov (Reg Rax, operand_of_num n)]
-  | Lst [Sym "add1"; arg] ->
+  | Prim1 (Add1, arg) ->
       compile_exp stack_index arg
       @ [Add (Reg Rax, Imm (1 lsl num_shift))]
-  | Lst [Sym "sub1"; arg] ->
+  | Prim1 (Sub1, arg) ->
       compile_exp stack_index arg
       @ [Sub (Reg Rax, Imm (1 lsl num_shift))]
-  | Sym "true" ->
-      [Mov (Reg Rax, operand_of_bool true)]
-  | Sym "false" ->
-      [Mov (Reg Rax, operand_of_bool false)]
-  | Lst [Sym "not"; arg] ->
+  | Prim1 (Not, arg) ->
       compile_exp stack_index arg
-      @ [Cmp (Reg Rax, operand_of_bool false)]
+      @ [Cmp (Reg Rax, Imm ((0 lsl bool_shift) lor bool_tag))]
       @ zf_to_bool
-  | Lst [Sym "zero?"; arg] ->
+  | Prim1 (ZeroP, arg) ->
       compile_exp stack_index arg
       @ [Cmp (Reg Rax, operand_of_num 0)]
       @ zf_to_bool
-  | Lst [Sym "num?"; arg] ->
+  | Prim1 (NumP, arg) ->
       compile_exp stack_index arg
       @ [And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag)]
       @ zf_to_bool
-  | Lst [Sym "if"; test_exp; then_exp; else_exp] ->
-      let else_label = gensym "false" in
+  | Prim2 (Plus, e1, e2) ->
+      compile_exp stack_index e1
+      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
+      @ compile_exp (stack_index - 8) e2
+      @ [Add (Reg Rax, MemOffset (Reg Rsp, Imm stack_index))]
+  | Prim2 (Minus, e1, e2) ->
+      compile_exp stack_index e1
+      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
+      @ compile_exp (stack_index - 8) e2
+      @ [ Mov (Reg R8, Reg Rax)
+        ; Mov (Reg Rax, MemOffset (Reg Rsp, Imm stack_index)) ]
+      @ [Sub (Reg Rax, Reg R8)]
+  | Prim2 (Eq, e1, e2) ->
+      compile_exp stack_index e1
+      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
+      @ compile_exp (stack_index - 8) e2
+      @ [ Mov (Reg R8, MemOffset (Reg Rsp, Imm stack_index))
+        ; Cmp (Reg Rax, Reg R8) ]
+      @ zf_to_bool
+  | Prim2 (Lt, e1, e2) ->
+      compile_exp stack_index e1
+      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
+      @ compile_exp (stack_index - 8) e2
+      @ [ Mov (Reg R8, MemOffset (Reg Rsp, Imm stack_index))
+        ; Cmp (Reg Rax, Reg R8) ]
+      @ lf_to_bool
+  | If (test_exp, then_exp, else_exp) ->
+      let else_label = gensym "else" in
       let continue_label = gensym "continue" in
       compile_exp stack_index test_exp
       @ [Cmp (Reg Rax, operand_of_bool false); Jz else_label]
@@ -69,41 +96,15 @@ let rec compile_exp (stack_index : int) (program : s_exp) :
       @ [Jmp continue_label] @ [Label else_label]
       @ compile_exp stack_index else_exp
       @ [Label continue_label]
-  | Lst [Sym "+"; e1; e2] ->
-      compile_exp stack_index e1
-      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
-      @ compile_exp (stack_index - 8) e2
-      @ [Add (Reg Rax, MemOffset (Reg Rsp, Imm stack_index))]
-  | Lst [Sym "-"; e1; e2] ->
-      compile_exp stack_index e2
-      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
-      @ compile_exp (stack_index - 8) e1
-      @ [Sub (Reg Rax, MemOffset (Reg Rsp, Imm stack_index))]
-  | Lst [Sym "="; e1; e2] ->
-      compile_exp stack_index e1
-      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
-      @ compile_exp (stack_index - 8) e2
-      @ [ Mov (Reg R8, MemOffset (Reg Rsp, Imm stack_index))
-        ; Cmp (Reg Rax, Reg R8) ]
-      @ zf_to_bool
-  | Lst [Sym "<"; e1; e2] ->
-      compile_exp stack_index e1
-      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
-      @ compile_exp (stack_index - 8) e2
-      @ [ Mov (Reg R8, MemOffset (Reg Rsp, Imm stack_index))
-        ; Cmp (Reg R8, Reg Rax) ]
-      @ lf_to_bool
-  | _ ->
-      raise (BadExpression program)
 
-let compile (program : s_exp) : string =
+let compile (program : expr) : string =
   [Global "entry"; Label "entry"] @ compile_exp (-8) program @ [Ret]
   |> List.map string_of_directive
   |> String.concat "\n"
 
 let compile_to_file (program : string) : unit =
   let file = open_out "program.s" in
-  output_string file (compile (parse program)) ;
+  parse program |> expr_of_s_exp |> compile |> output_string file ;
   close_out file
 
 let compile_and_run (program : string) : string =
