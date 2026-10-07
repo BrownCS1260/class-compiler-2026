@@ -52,10 +52,10 @@ let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
       raise (BadExpression exp)
   | Prim1 (Add1, arg) ->
       compile_exp tab stack_index arg
-      @ [Add (Reg Rax, Imm (1 lsl num_shift))]
+      @ [Add (Reg Rax, operand_of_num 1)]
   | Prim1 (Sub1, arg) ->
       compile_exp tab stack_index arg
-      @ [Sub (Reg Rax, Imm (1 lsl num_shift))]
+      @ [Sub (Reg Rax, operand_of_num 1)]
   | Prim1 (Not, arg) ->
       compile_exp tab stack_index arg
       @ [Cmp (Reg Rax, Imm ((0 lsl bool_shift) lor bool_tag))]
@@ -70,28 +70,28 @@ let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
       @ zf_to_bool
   | Prim2 (Plus, e1, e2) ->
       compile_exp tab stack_index e1
-      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
+      @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
-      @ [Add (Reg Rax, MemOffset (Reg Rsp, Imm stack_index))]
+      @ [Add (Reg Rax, stack_address stack_index)]
   | Prim2 (Minus, e1, e2) ->
       compile_exp tab stack_index e1
-      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
+      @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
       @ [ Mov (Reg R8, Reg Rax)
-        ; Mov (Reg Rax, MemOffset (Reg Rsp, Imm stack_index)) ]
+        ; Mov (Reg Rax, stack_address stack_index) ]
       @ [Sub (Reg Rax, Reg R8)]
   | Prim2 (Eq, e1, e2) ->
       compile_exp tab stack_index e1
-      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
+      @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
-      @ [ Mov (Reg R8, MemOffset (Reg Rsp, Imm stack_index))
+      @ [ Mov (Reg R8, stack_address stack_index)
         ; Cmp (Reg Rax, Reg R8) ]
       @ zf_to_bool
   | Prim2 (Lt, e1, e2) ->
       compile_exp tab stack_index e1
-      @ [Mov (MemOffset (Reg Rsp, Imm stack_index), Reg Rax)]
+      @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
-      @ [ Mov (Reg R8, MemOffset (Reg Rsp, Imm stack_index))
+      @ [ Mov (Reg R8, stack_address stack_index)
         ; Cmp (Reg Rax, Reg R8) ]
       @ lf_to_bool
   | If (test_exp, then_exp, else_exp) ->
