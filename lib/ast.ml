@@ -1,6 +1,6 @@
 open S_exp
 
-type prim1 = Add1 | Sub1 | NumP | ZeroP | Not
+type prim1 = Add1 | Sub1 | NumP | ZeroP | Not | Left | Right
 
 let prim1_of_string (s : string) : prim1 option =
   match s with
@@ -14,6 +14,10 @@ let prim1_of_string (s : string) : prim1 option =
       Some NumP
   | "not" ->
       Some Not
+  | "left" ->
+      Some Left
+  | "right" ->
+      Some Right
   | _ ->
       None
 
@@ -40,6 +44,7 @@ type expr =
   | Prim2 of prim2 * expr * expr
   | If of expr * expr * expr
   | Let of string * expr * expr
+  | Pair of expr * expr
 
 exception BadSExpression of s_exp
 
@@ -64,5 +69,7 @@ let rec expr_of_s_exp (e : s_exp) : expr =
         , expr_of_s_exp e2 )
   | Lst [Sym "let"; Lst [Lst [Sym s; e]]; body] ->
       Let (s, expr_of_s_exp e, expr_of_s_exp body)
+  | Lst [Sym "pair"; e1; e2] ->
+      Pair (expr_of_s_exp e1, expr_of_s_exp e2)
   | _ ->
       raise (BadSExpression e)

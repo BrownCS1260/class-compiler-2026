@@ -17,6 +17,10 @@ let bool_mask = 0b1111111
 
 let bool_tag = 0b0011111
 
+let heap_mask = 0b111
+
+let pair_tag = 0b010
+
 let operand_of_bool (b : bool) : operand =
   Imm (((if b then 1 else 0) lsl bool_shift) lor bool_tag)
 
@@ -37,6 +41,25 @@ let operand_of_num (n : int) = Imm (n lsl num_shift)
 let stack_address (stack_index : int) =
   MemOffset (Reg Rsp, Imm stack_index)
 
+(* ensure_num overwrites R8 *)
+let ensure_num (op : operand) : directive list =
+  [ Mov (Reg R8, op)
+  ; And (Reg R8, Imm num_mask)
+  ; Cmp (Reg R8, Imm num_tag)
+  ; Jnz "error" ]
+
+let ensure_bool (op : operand) : directive list =
+  [ Mov (Reg R8, op)
+  ; And (Reg R8, Imm bool_mask)
+  ; Cmp (Reg R8, Imm bool_tag)
+  ; Jnz "error" ]
+
+let ensure_pair (op : operand) : directive list =
+  [ Mov (Reg R8, op)
+  ; And (Reg R8, Imm heap_mask)
+  ; Cmp (Reg R8, Imm pair_tag)
+  ; Jnz "error" ]
+
 let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
     : directive list =
   match exp with
@@ -52,7 +75,11 @@ let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
       raise (BadExpression exp)
   | Prim1 (Add1, arg) ->
       compile_exp tab stack_index arg
-      @ [Add (Reg Rax, operand_of_num 1)]
+      @ [ Mov (Reg R8, Reg Rax)
+        ; And (Reg R8, Imm num_mask)
+        ; Cmp (Reg R8, Imm num_tag)
+        ; Jnz "error"
+        ; Add (Reg Rax, operand_of_num 1) ]
   | Prim1 (Sub1, arg) ->
       compile_exp tab stack_index arg
       @ [Sub (Reg Rax, operand_of_num 1)]
@@ -68,6 +95,14 @@ let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
       compile_exp tab stack_index arg
       @ [And (Reg Rax, Imm num_mask); Cmp (Reg Rax, Imm num_tag)]
       @ zf_to_bool
+  | Prim1 (Left, arg) ->
+      compile_exp tab stack_index arg
+      @ ensure_pair (Reg Rax)
+      @ [Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag)))]
+  | Prim1 (Right, arg) ->
+      compile_exp tab stack_index arg
+      @ ensure_pair (Reg Rax)
+      @ [Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8)))]
   | Prim2 (Plus, e1, e2) ->
       compile_exp tab stack_index e1
       @ [Mov (stack_address stack_index, Reg Rax)]
@@ -109,9 +144,19 @@ let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
       @ compile_exp
           (Symtab.add var stack_index tab)
           (stack_index - 8) body
+  | Pair (e1, e2) ->
+      compile_exp tab stack_index e1
+      @ [Mov (stack_address stack_index, Reg Rax)]
+      @ compile_exp tab (stack_index - 8) e2
+      @ [ Mov (Reg R8, stack_address stack_index)
+        ; Mov (MemOffset (Reg Rdi, Imm 0), Reg R8)
+        ; Mov (MemOffset (Reg Rdi, Imm 8), Reg Rax)
+        ; Mov (Reg Rax, Reg Rdi)
+        ; Or (Reg Rax, Imm pair_tag)
+        ; Add (Reg Rdi, Imm 16) ]
 
 let compile (program : expr) : string =
-  [Global "entry"; Label "entry"]
+  [Global "entry"; Extern "error"; Label "entry"]
   @ compile_exp Symtab.empty (-8) program
   @ [Ret]
   |> List.map string_of_directive

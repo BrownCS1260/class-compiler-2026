@@ -4,14 +4,17 @@ open Util
 
 exception BadExpression of expr
 
-type value = Number of int | Boolean of bool
+type value = Number of int | Boolean of bool | Pair of value * value
 
-let string_of_value (v : value) : string =
+let rec string_of_value (v : value) : string =
   match v with
   | Number n ->
       string_of_int n
   | Boolean b ->
       if b then "true" else "false"
+  | Pair (v1, v2) ->
+      Printf.sprintf "(pair %s %s)" (string_of_value v1)
+        (string_of_value v2)
 
 let rec interp_exp (env : value symtab) (exp : expr) : value =
   match exp with
@@ -52,6 +55,18 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
         Number (n - 1)
     | _ ->
         raise (BadExpression exp) )
+  | Prim1 (Left, arg) -> (
+    match interp_exp env arg with
+    | Pair (l, _) ->
+        l
+    | _ ->
+        raise (BadExpression exp) )
+  | Prim1 (Right, arg) -> (
+    match interp_exp env arg with
+    | Pair (_, r) ->
+        r
+    | _ ->
+        raise (BadExpression exp) )
   | Prim2 (Plus, e1, e2) -> (
     match (interp_exp env e1, interp_exp env e2) with
     | Number n1, Number n2 ->
@@ -64,8 +79,12 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
         Number (n1 - n2)
     | _ ->
         raise (BadExpression exp) )
-  | Prim2 (Eq, e1, e2) ->
-      Boolean (interp_exp env e1 = interp_exp env e2)
+  | Prim2 (Eq, e1, e2) -> (
+    match (interp_exp env e1, interp_exp env e2) with
+    | Number n1, Number n2 ->
+        Boolean (n1 = n2)
+    | _ ->
+        raise (BadExpression exp) )
   | Prim2 (Lt, e1, e2) -> (
     match (interp_exp env e1, interp_exp env e2) with
     | Number n1, Number n2 ->
@@ -79,6 +98,10 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
   | Let (var, e, body) ->
       let e_value = interp_exp env e in
       interp_exp (Symtab.add var e_value env) body
+  | Pair (e1, e2) ->
+      let e1_val = interp_exp env e1 in
+      let e2_val = interp_exp env e2 in
+      Pair (e1_val, e2_val)
 
 let interp (program : string) : string =
   parse program |> expr_of_s_exp |> interp_exp Symtab.empty
