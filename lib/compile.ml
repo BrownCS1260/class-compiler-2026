@@ -170,7 +170,9 @@ let compile (program : expr) : string =
 
 let compile_to_file (program : string) : unit =
   let file = open_out "program.s" in
-  parse program |> expr_of_s_exp |> compile |> output_string file ;
+  let out = parse program |> expr_of_s_exp in
+  if has_free_vars out then raise (BadExpression out) ;
+  compile out |> output_string file ;
   close_out file
 
 let compile_and_run (program : string) : string =
