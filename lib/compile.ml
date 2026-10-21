@@ -75,13 +75,11 @@ let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
       raise (BadExpression exp)
   | Prim1 (Add1, arg) ->
       compile_exp tab stack_index arg
-      @ [ Mov (Reg R8, Reg Rax)
-        ; And (Reg R8, Imm num_mask)
-        ; Cmp (Reg R8, Imm num_tag)
-        ; Jnz "error"
-        ; Add (Reg Rax, operand_of_num 1) ]
+      @ ensure_num (Reg Rax)
+      @ [Add (Reg Rax, operand_of_num 1)]
   | Prim1 (Sub1, arg) ->
       compile_exp tab stack_index arg
+      @ ensure_num (Reg Rax)
       @ [Sub (Reg Rax, operand_of_num 1)]
   | Prim1 (Not, arg) ->
       compile_exp tab stack_index arg
@@ -105,27 +103,35 @@ let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
       @ [Mov (Reg Rax, MemOffset (Reg Rax, Imm (-pair_tag + 8)))]
   | Prim2 (Plus, e1, e2) ->
       compile_exp tab stack_index e1
+      @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
+      @ ensure_num (Reg Rax)
       @ [Add (Reg Rax, stack_address stack_index)]
   | Prim2 (Minus, e1, e2) ->
       compile_exp tab stack_index e1
+      @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
+      @ ensure_num (Reg Rax)
       @ [ Mov (Reg R8, Reg Rax)
         ; Mov (Reg Rax, stack_address stack_index) ]
       @ [Sub (Reg Rax, Reg R8)]
   | Prim2 (Eq, e1, e2) ->
       compile_exp tab stack_index e1
+      @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
+      @ ensure_num (Reg Rax)
       @ [ Mov (Reg R8, stack_address stack_index)
         ; Cmp (Reg Rax, Reg R8) ]
       @ zf_to_bool
   | Prim2 (Lt, e1, e2) ->
       compile_exp tab stack_index e1
+      @ ensure_num (Reg Rax)
       @ [Mov (stack_address stack_index, Reg Rax)]
       @ compile_exp tab (stack_index - 8) e2
+      @ ensure_num (Reg Rax)
       @ [ Mov (Reg R8, stack_address stack_index)
         ; Cmp (Reg Rax, Reg R8) ]
       @ lf_to_bool
