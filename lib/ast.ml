@@ -1,11 +1,17 @@
 open S_exp
 
-type prim0 = ReadNum
+type prim0 = ReadNum | Newline
 
 let prim0_of_string (s : string) : prim0 option =
-  match s with "read-num" -> Some ReadNum | _ -> None
+  match s with
+  | "read-num" ->
+      Some ReadNum
+  | "newline" ->
+      Some Newline
+  | _ ->
+      None
 
-type prim1 = Add1 | Sub1 | NumP | ZeroP | Not | Left | Right
+type prim1 = Add1 | Sub1 | NumP | ZeroP | Not | Left | Right | Print
 
 let prim1_of_string (s : string) : prim1 option =
   match s with
@@ -23,6 +29,8 @@ let prim1_of_string (s : string) : prim1 option =
       Some Left
   | "right" ->
       Some Right
+  | "print" ->
+      Some Print
   | _ ->
       None
 
@@ -52,6 +60,7 @@ type expr =
   | Let of string * expr * expr
   | Pair of expr * expr
   | Do of expr list
+  | Call of string * expr list
 
 exception BadSExpression of s_exp
 
@@ -82,34 +91,74 @@ let rec expr_of_s_exp (e : s_exp) : expr =
       Pair (expr_of_s_exp e1, expr_of_s_exp e2)
   | Lst (Sym "do" :: l) ->
       Do (List.map expr_of_s_exp l)
+  | Lst (Sym f :: args) ->
+      Call (f, List.map expr_of_s_exp args)
   | _ ->
       raise (BadSExpression e)
 
-let rec fv (bound : string list) (exp : expr) =
-  match exp with
-  | Var s when not (List.mem s bound) ->
-      [s]
-  | Var _ ->
-      []
-  | Let (v, e, body) ->
-      fv bound e @ fv (v :: bound) body
-  | If (te, the, ee) ->
-      fv bound te @ fv bound the @ fv bound ee
-  | Prim0 _ ->
-      []
-  | Prim1 (_, e) ->
-      fv bound e
-  | Prim2 (_, e1, e2) ->
-      fv bound e1 @ fv bound e2
-  | Pair (e1, e2) ->
-      fv bound e1 @ fv bound e2
-  | Num _ ->
-      []
-  | True ->
-      []
-  | False ->
-      []
-  | Do l ->
-      List.fold_left (fun l e -> fv bound e @ l) [] l
+(* let rec fv (bound : string list) (exp : expr) =
+   match exp with
+   | Var s when not (List.mem s bound) ->
+       [s]
+   | Var _ ->
+       []
+   | Let (v, e, body) ->
+       fv bound e @ fv (v :: bound) body
+   | If (te, the, ee) ->
+       fv bound te @ fv bound the @ fv bound ee
+   | Prim0 _ ->
+       []
+   | Prim1 (_, e) ->
+       fv bound e
+   | Prim2 (_, e1, e2) ->
+       fv bound e1 @ fv bound e2
+   | Pair (e1, e2) ->
+       fv bound e1 @ fv bound e2
+   | Num _ ->
+       []
+   | True ->
+       []
+   | False ->
+       []
+   | Do l ->
+       List.fold_left (fun l e -> fv bound e @ l) [] l *)
 
-let has_free_vars (exp : expr) : bool = fv [] exp <> []
+let has_free_vars (exp : expr) : bool =
+  (* fv [] exp <> [] *)
+  false
+
+type defn = {name: string; args: string list; body: expr}
+
+type program = {defns: defn list; body: expr}
+
+let is_defn defns name = List.exists (fun d -> d.name = name) defns
+
+let get_defn defns name = List.find (fun d -> d.name = name) defns
+
+let program_of_s_exps (exps : s_exp list) : program =
+  let rec get_args args =
+    match args with
+    | Sym v :: args ->
+        v :: get_args args
+    | e :: _ ->
+        raise (BadSExpression e)
+    | [] ->
+        []
+  in
+  let get_defn = function
+    | Lst [Sym "define"; Lst (Sym name :: args); body] ->
+        let args = get_args args in
+        {name; args; body= expr_of_s_exp body}
+    | e ->
+        raise (BadSExpression e)
+  in
+  let rec go exps defns =
+    match exps with
+    | [e] ->
+        {defns= List.rev defns; body= expr_of_s_exp e}
+    | d :: exps ->
+        go exps (get_defn d :: defns)
+    | _ ->
+        raise (BadSExpression (Sym "empty"))
+  in
+  go exps []
