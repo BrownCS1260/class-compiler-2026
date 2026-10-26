@@ -106,6 +106,8 @@ let rec interp_exp (env : value symtab) (exp : expr) : value =
       let v1 = interp_exp env e1 in
       let v2 = interp_exp env e2 in
       Pair (v1, v2)
+  | Do exps ->
+      exps |> List.rev_map (interp_exp env) |> List.hd
 
 let interp (program : string) : string =
   let out = parse program |> expr_of_s_exp in

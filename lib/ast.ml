@@ -51,6 +51,7 @@ type expr =
   | If of expr * expr * expr
   | Let of string * expr * expr
   | Pair of expr * expr
+  | Do of expr list
 
 exception BadSExpression of s_exp
 
@@ -79,6 +80,8 @@ let rec expr_of_s_exp (e : s_exp) : expr =
       Let (s, expr_of_s_exp e, expr_of_s_exp body)
   | Lst [Sym "pair"; e1; e2] ->
       Pair (expr_of_s_exp e1, expr_of_s_exp e2)
+  | Lst (Sym "do" :: l) ->
+      Do (List.map expr_of_s_exp l)
   | _ ->
       raise (BadSExpression e)
 
@@ -106,5 +109,7 @@ let rec fv (bound : string list) (exp : expr) =
       []
   | False ->
       []
+  | Do l ->
+      List.fold_left (fun l e -> fv bound e @ l) [] l
 
 let has_free_vars (exp : expr) : bool = fv [] exp <> []

@@ -169,6 +169,9 @@ let rec compile_exp (tab : int symtab) (stack_index : int) (exp : expr)
         ; Mov (Reg Rax, Reg Rdi)
         ; Or (Reg Rax, Imm pair_tag)
         ; Add (Reg Rdi, Imm 16) ]
+  | Do exps ->
+      List.map (fun exp -> compile_exp tab stack_index exp) exps
+      |> List.concat
 
 let compile (program : expr) : string =
   [Global "entry"; Extern "error"; Extern "read_num"; Label "entry"]
