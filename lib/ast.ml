@@ -123,7 +123,7 @@ let rec expr_of_s_exp (e : s_exp) : expr =
    | Do l ->
        List.fold_left (fun l e -> fv bound e @ l) [] l *)
 
-let has_free_vars (exp : expr) : bool =
+let has_free_vars (_ : expr) : bool =
   (* fv [] exp <> [] *)
   false
 

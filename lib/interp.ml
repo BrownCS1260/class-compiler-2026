@@ -127,6 +127,5 @@ let rec interp_exp (defns : defn list) (env : value symtab)
       raise (BadExpression exp)
 
 let interp (program : string) : unit =
-  let out = parse program |> expr_of_s_exp in
-  if has_free_vars out then raise (BadExpression out) ;
-  interp_exp defns Symtab.empty out |> ignore
+  let program2 = parse_many program |> program_of_s_exps in
+  interp_exp program2.defns Symtab.empty program2.body |> ignore
