@@ -62,8 +62,10 @@ let rec expr_of_expr_lam (defns : defn list ref) : expr_lam -> expr =
       Num x
   | Var s ->
       Var s
-  | Bool b ->
-      Bool b
+  | Bool true ->
+      True
+  | Bool false ->
+      False
   | If (test_exp, then_exp, else_exp) ->
       If
         ( expr_of_expr_lam defns test_exp
