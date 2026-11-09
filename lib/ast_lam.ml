@@ -41,6 +41,8 @@ let rec expr_lam_of_s_exp : s_exp -> expr_lam = function
   | Lst [Sym "lambda"; Lst args; body] when List.for_all is_sym args
     ->
       Lambda (List.map as_sym args, expr_lam_of_s_exp body)
+  | Lst [Sym "pair"; e1; e2] ->
+      Pair (expr_lam_of_s_exp e1, expr_lam_of_s_exp e2)
   | Lst [Sym prim] when Option.is_some (prim0_of_string prim) ->
       Prim0 (Option.get (prim0_of_string prim))
   | Lst [Sym prim; arg] when Option.is_some (prim1_of_string prim) ->
