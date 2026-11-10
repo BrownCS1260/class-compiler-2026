@@ -129,12 +129,13 @@ let rec interp_exp (defns : defn list) (env : value symtab)
   | Call (f, args) -> (
       let fv = interp_exp defns env f in
       match fv with
-      | Function (name, env) when is_defn defns name ->
+      | Function (name, closure_env) when is_defn defns name ->
           let defn = get_defn defns name in
           if List.length args = List.length defn.args then
             let vals = List.map (interp_exp defns env) args in
             let fenv =
-              List.combine defn.args vals |> Symtab.add_list env
+              List.combine defn.args vals
+              |> Symtab.add_list closure_env
             in
             interp_exp defns fenv defn.body
           else raise (BadExpression exp)
