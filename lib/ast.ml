@@ -53,6 +53,7 @@ type expr =
   | False
   | Num of int
   | Var of string
+  | Closure of string
   | Prim0 of prim0
   | Prim1 of prim1 * expr
   | Prim2 of prim2 * expr * expr

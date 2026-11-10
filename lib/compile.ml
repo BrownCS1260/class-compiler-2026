@@ -1,7 +1,7 @@
 open S_exp
 open Asm
 open Util
-open Ast
+open Ast_lam
 
 exception BadExpression of expr
 
@@ -86,6 +86,8 @@ let rec compile_exp (defns : defn list) (tab : int symtab)
   | Var s when is_defn defns s ->
       [LeaLabel (Reg Rax, defn_label s); Or (Reg Rax, Imm fn_tag)]
   | Var _ ->
+      raise (BadExpression exp)
+  | Closure _ ->
       raise (BadExpression exp)
   | Prim0 ReadNum ->
       [ Mov (stack_address stack_index, Reg Rdi)
