@@ -97,32 +97,37 @@ let rec expr_of_s_exp (e : s_exp) : expr =
   | _ ->
       raise (BadSExpression e)
 
-(* let rec fv (bound : string list) (exp : expr) =
-   match exp with
-   | Var s when not (List.mem s bound) ->
-       [s]
-   | Var _ ->
-       []
-   | Let (v, e, body) ->
-       fv bound e @ fv (v :: bound) body
-   | If (te, the, ee) ->
-       fv bound te @ fv bound the @ fv bound ee
-   | Prim0 _ ->
-       []
-   | Prim1 (_, e) ->
-       fv bound e
-   | Prim2 (_, e1, e2) ->
-       fv bound e1 @ fv bound e2
-   | Pair (e1, e2) ->
-       fv bound e1 @ fv bound e2
-   | Num _ ->
-       []
-   | True ->
-       []
-   | False ->
-       []
-   | Do l ->
-       List.fold_left (fun l e -> fv bound e @ l) [] l *)
+let rec fv (bound : string list) (exp : expr) =
+  match exp with
+  | Var s when not (List.mem s bound) ->
+      [s]
+  | Var _ ->
+      []
+  | Let (v, e, body) ->
+      fv bound e @ fv (v :: bound) body
+  | If (te, the, ee) ->
+      fv bound te @ fv bound the @ fv bound ee
+  | Prim0 _ ->
+      []
+  | Prim1 (_, e) ->
+      fv bound e
+  | Prim2 (_, e1, e2) ->
+      fv bound e1 @ fv bound e2
+  | Pair (e1, e2) ->
+      fv bound e1 @ fv bound e2
+  | Num _ ->
+      []
+  | True ->
+      []
+  | False ->
+      []
+  | Do exps ->
+      List.fold_left (fun l e -> fv bound e @ l) [] exps
+  | Call (exp, args) ->
+      fv bound exp
+      @ List.fold_left (fun l e -> fv bound e @ l) [] args
+  | Closure _ ->
+      []
 
 let has_free_vars (_ : expr) : bool =
   (* fv [] exp <> [] *)
